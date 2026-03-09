@@ -56,7 +56,7 @@ export const BLOG_CATEGORIES = [
   "Home & Garden",
 ] as const;
 
-const FEATURED_IMG = "/undefined%20(8).png";
+const FEATURED_IMG = "/undefined-8.png";
 
 function storePost(
   slug: string,

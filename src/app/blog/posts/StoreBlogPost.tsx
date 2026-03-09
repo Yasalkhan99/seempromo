@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { StoreBlogContent } from "@/lib/store-blog-types";
 
 const IMGS = [
-  "/undefined%20(8).png", "/undefined%20(9).png", "/undefined%20(10).png", "/undefined%20(11).png",
+  "/undefined-8.png", "/undefined-9.png", "/undefined-10.png", "/undefined-11.png",
   "/img01.jpg", "/img02.jpg", "/img03.jpg", "/img04.jpg", "/img05.jpg", "/img06.jpg", "/img07.jpg", "/img08.jpg", "/img09.jpg", "/img10.jpg",
 ];
 

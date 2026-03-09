@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 
-const IMG1 = "/undefined%20(8).png";
-const IMG2 = "/undefined%20(9).png";
-const IMG3 = "/undefined%20(10).png";
-const IMG4 = "/undefined%20(11).png";
+const IMG1 = "/undefined-8.png";
+const IMG2 = "/undefined-9.png";
+const IMG3 = "/undefined-10.png";
+const IMG4 = "/undefined-11.png";
 
 export default function CouponroSavingTipsPost() {
   return (
