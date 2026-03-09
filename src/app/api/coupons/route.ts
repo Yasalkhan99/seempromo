@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+};
 import {
   getCoupons,
   getCouponsPaginated,
@@ -33,7 +37,7 @@ export async function GET(request: NextRequest) {
         search: q,
         codesFirst,
       });
-      return NextResponse.json({ coupons, total });
+      return NextResponse.json({ coupons, total }, { headers: CACHE_HEADERS });
     }
     const coupons = await getCoupons();
     return NextResponse.json(coupons);

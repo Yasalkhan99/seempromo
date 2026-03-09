@@ -70,10 +70,14 @@ function pickStoreFromBody(body: Record<string, unknown>, existing?: Store): Sto
   };
 }
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+};
+
 export async function GET() {
   try {
     const stores = await getStores();
-    return NextResponse.json(stores);
+    return NextResponse.json(stores, { headers: CACHE_HEADERS });
   } catch (e) {
     console.error("[api/stores] GET:", e);
     return NextResponse.json(

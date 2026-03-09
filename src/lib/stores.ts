@@ -1,9 +1,12 @@
+import { unstable_cache } from "next/cache";
 import type { Store } from "@/types/store";
 import {
   getSupabase,
   SUPABASE_STORES_TABLE,
   SUPABASE_COUPONS_TABLE,
 } from "./supabase-server";
+
+const CACHE_REVALIDATE = 60; // seconds – reduce Supabase load and speed up repeat visits
 
 function requireSupabase() {
   const supabase = getSupabase();
@@ -15,7 +18,7 @@ function requireSupabase() {
   return supabase;
 }
 
-export async function getStores(): Promise<Store[]> {
+async function getStoresRaw(): Promise<Store[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
   const { data: rows, error } = await supabase
@@ -34,7 +37,13 @@ export async function getStores(): Promise<Store[]> {
   return stores;
 }
 
-export async function getCoupons(): Promise<Store[]> {
+export const getStores = unstable_cache(
+  getStoresRaw,
+  ["stores-list"],
+  { revalidate: CACHE_REVALIDATE }
+);
+
+async function getCouponsRaw(): Promise<Store[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
   const { data: rows, error } = await supabase
@@ -59,6 +68,12 @@ export async function getCoupons(): Promise<Store[]> {
   });
   return coupons;
 }
+
+export const getCoupons = unstable_cache(
+  getCouponsRaw,
+  ["coupons-list"],
+  { revalidate: CACHE_REVALIDATE }
+);
 
 export type CouponsPaginatedOptions = {
   page: number;
