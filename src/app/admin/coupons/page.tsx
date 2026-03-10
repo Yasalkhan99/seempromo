@@ -7,7 +7,7 @@ import { parseCSV } from "@/lib/parse-csv";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 const UPLOAD_TIMEOUT_MS = 45000;
-const LOAD_TIMEOUT_MS = 15000;
+const LOAD_TIMEOUT_MS = 30000;
 
 export default function AdminCouponsPage() {
   const [stores, setStores] = useState<Store[]>([]);

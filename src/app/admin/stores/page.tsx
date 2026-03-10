@@ -42,8 +42,8 @@ export default function AdminStoresPage() {
     setLoading(true);
     try {
       const [storesRes, couponsRes] = await Promise.all([
-        fetchWithTimeout("/api/stores", { cache: "no-store" }, 15000),
-        fetchWithTimeout("/api/coupons", { cache: "no-store" }, 15000),
+        fetchWithTimeout("/api/stores", { cache: "no-store" }, 30000),
+        fetchWithTimeout("/api/coupons", { cache: "no-store" }, 30000),
       ]);
       const storesData = await storesRes.json();
       const couponsData = await couponsRes.json().catch(() => []);

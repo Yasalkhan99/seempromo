@@ -6,7 +6,7 @@ import {
   SUPABASE_COUPONS_TABLE,
 } from "./supabase-server";
 
-const CACHE_REVALIDATE = 60; // seconds – reduce Supabase load and speed up repeat visits
+const CACHE_REVALIDATE = 15; // seconds – balance freshness (after delete/add) vs Supabase load
 
 function requireSupabase() {
   const supabase = getSupabase();
