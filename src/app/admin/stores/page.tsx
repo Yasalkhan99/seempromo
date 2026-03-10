@@ -5,6 +5,7 @@ import type { Store } from "@/types/store";
 import { STORE_CATEGORIES } from "@/lib/store-categories";
 import { slugify } from "@/lib/slugify";
 import { parseCSV } from "@/lib/parse-csv";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 const inputClass =
   "w-full rounded-lg border-2 border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30 outline-none transition-colors text-sm";
@@ -41,15 +42,18 @@ export default function AdminStoresPage() {
     setLoading(true);
     try {
       const [storesRes, couponsRes] = await Promise.all([
-        fetch("/api/stores", { cache: "no-store" }),
-        fetch("/api/coupons", { cache: "no-store" }),
+        fetchWithTimeout("/api/stores", { cache: "no-store" }, 15000),
+        fetchWithTimeout("/api/coupons", { cache: "no-store" }, 15000),
       ]);
       const storesData = await storesRes.json();
       const couponsData = await couponsRes.json().catch(() => []);
       setStores(Array.isArray(storesData) ? storesData : []);
       setCoupons(Array.isArray(couponsData) ? couponsData : []);
-    } catch {
-      setMessage({ type: "err", text: "Failed to load stores" });
+    } catch (e) {
+      const msg = e instanceof Error && e.name === "AbortError"
+        ? "Request timed out. Check Supabase connection."
+        : "Failed to load stores";
+      setMessage({ type: "err", text: msg });
     } finally {
       setLoading(false);
     }

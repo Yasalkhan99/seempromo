@@ -4,13 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { Store } from "@/types/store";
 import { slugify } from "@/lib/slugify";
 import { parseCSV } from "@/lib/parse-csv";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
-const FETCH_TIMEOUT_MS = 45000;
-function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
-}
+const UPLOAD_TIMEOUT_MS = 45000;
+const LOAD_TIMEOUT_MS = 15000;
 
 export default function AdminCouponsPage() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -39,10 +36,11 @@ export default function AdminCouponsPage() {
     setLoading(true);
     try {
       const [sRes, cRes] = await Promise.all([
-        fetch("/api/stores", { cache: "no-store" }),
-        fetch(
+        fetchWithTimeout("/api/stores", { cache: "no-store" }, LOAD_TIMEOUT_MS),
+        fetchWithTimeout(
           `/api/coupons?page=${page}&limit=${limit}&status=${statusFilter}&q=${encodeURIComponent(searchQuery.trim())}`,
-          { cache: "no-store" }
+          { cache: "no-store" },
+          LOAD_TIMEOUT_MS
         ),
       ]);
       const sData = await sRes.json();
@@ -55,8 +53,11 @@ export default function AdminCouponsPage() {
         setCoupons(Array.isArray(cData) ? cData : []);
         setTotal(Array.isArray(cData) ? cData.length : 0);
       }
-    } catch {
-      setMessage({ type: "err", text: "Failed to load data" });
+    } catch (e) {
+      const msg = e instanceof Error && e.name === "AbortError"
+        ? "Request timed out. Check Supabase connection."
+        : "Failed to load data";
+      setMessage({ type: "err", text: msg });
     } finally {
       setLoading(false);
     }
@@ -138,7 +139,7 @@ export default function AdminCouponsPage() {
             slug: slugify(storeName.trim()),
             description: "",
           }),
-        });
+        }, UPLOAD_TIMEOUT_MS);
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
           if (!firstError) firstError = d?.error ?? res.statusText ?? "Store create failed";
@@ -158,7 +159,7 @@ export default function AdminCouponsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ coupons: batch }),
-        });
+        }, UPLOAD_TIMEOUT_MS);
         if (res.ok) return true;
         const d = await res.json().catch(() => ({}));
         if (!firstError) firstError = d?.error ?? res.statusText ?? "Batch failed";
@@ -346,18 +347,18 @@ export default function AdminCouponsPage() {
   const showForm = showCreateForm || !!editingId;
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+    <div className="space-y-4 sm:space-y-6 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
           Manage Coupons
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleExportCsv}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors"
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-emerald-500 transition-colors"
           >
-            Export Coupons (CSV)
+            Export CSV
           </button>
           <input
             ref={uploadCouponsInputRef}
@@ -371,9 +372,9 @@ export default function AdminCouponsPage() {
             type="button"
             onClick={() => uploadCouponsInputRef.current?.click()}
             disabled={uploadingCoupons}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 transition-colors disabled:opacity-70"
+            className="rounded-lg bg-amber-500 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-amber-400 transition-colors disabled:opacity-70"
           >
-            {uploadingCoupons ? (uploadCouponsProgress ?? "Uploading…") : "Upload Coupons"}
+            {uploadingCoupons ? (uploadCouponsProgress ?? "Uploading…") : "Upload"}
           </button>
           <button
             type="button"
@@ -382,31 +383,31 @@ export default function AdminCouponsPage() {
               setForm({ couponType: "deal", priority: 0, active: true, selectedStoreId: "" });
               setShowCreateForm(true);
             }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+            className="rounded-lg bg-blue-600 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-blue-500 transition-colors"
           >
-            Create New Coupon
+            New Coupon
           </button>
           <button
             type="button"
             onClick={handleDeleteAll}
             disabled={deletingAll}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="rounded-lg bg-red-600 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-red-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {deletingAll ? "Deleting…" : "Delete All Coupons"}
+            {deletingAll ? "Deleting…" : "Delete All"}
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
         <input
           type="text"
-          placeholder="Q Store name or Row ID (e.g. eFlorist or e425c30f)..."
+          placeholder="Store name or Row ID..."
           value={searchQuery}
           onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-          className="flex-1 min-w-[200px] max-w-xl rounded-lg border-2 border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30 outline-none"
+          className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xl rounded-lg border-2 border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30 outline-none"
         />
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-slate-700">Status Filter:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-slate-700 shrink-0">Status:</span>
           {(["all", "enable", "disable"] as const).map((s) => (
             <label key={s} className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
               <input
@@ -439,7 +440,7 @@ export default function AdminCouponsPage() {
       {showForm && (
       <form
         onSubmit={handleSave}
-        className="rounded-xl border-2 border-stone-200 bg-white p-6 shadow-md space-y-4"
+        className="rounded-xl border-2 border-stone-200 bg-white p-4 sm:p-6 shadow-md space-y-4"
       >
         <h2 className="text-lg font-semibold text-stone-800 pb-2 border-b border-stone-200">
           {editingId ? "Edit coupon" : "Add coupon"}
@@ -682,34 +683,34 @@ export default function AdminCouponsPage() {
       )}
 
       {/* Coupons table – reference layout */}
-      <div className="rounded-xl border-2 border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border-2 border-slate-200 bg-white shadow-sm overflow-hidden -mx-4 sm:mx-0">
         {loading ? (
-          <div className="p-12 text-center">
+          <div className="p-8 sm:p-12 text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-500" />
             <p className="mt-3 text-sm text-slate-500">Loading…</p>
           </div>
         ) : coupons.length === 0 ? (
-          <div className="p-12 text-center text-sm text-slate-500">
-            No coupons yet. Click &quot;Create New Coupon&quot; to add one.
+          <div className="p-8 sm:p-12 text-center text-sm text-slate-500">
+            No coupons yet. Click &quot;New Coupon&quot; to add one.
           </div>
         ) : (
           <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+            <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3 w-10">
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3 w-10">
                     <input type="checkbox" className="rounded border-slate-300" aria-label="Select all" />
                   </th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Logo</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Store Name</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Row ID</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Title</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Code</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Description</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Expiry Date</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Status</th>
-                  <th className="text-left font-semibold text-slate-700 px-4 py-3">Actions</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Logo</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Store Name</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Row ID</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Title</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Code</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3 hidden md:table-cell">Description</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3 hidden lg:table-cell">Expiry Date</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Status</th>
+                  <th className="text-left font-semibold text-slate-700 px-2 sm:px-4 py-2 sm:py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -736,13 +737,13 @@ export default function AdminCouponsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{c.name ?? "–"}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-slate-700">{(page - 1) * limit + i + 1}</td>
-                    <td className="px-4 py-3 text-slate-700 max-w-[180px] truncate" title={c.couponTitle ?? ""}>{c.couponTitle ?? "–"}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{c.couponCode ?? "–"}</td>
-                    <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate" title={c.description ?? ""}>{c.description ?? "–"}</td>
-                    <td className="px-4 py-3 text-slate-600">{c.expiry ?? "–"}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium text-slate-900">{c.name ?? "–"}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-mono text-sm text-slate-700">{(page - 1) * limit + i + 1}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 text-slate-700 max-w-[140px] sm:max-w-[180px] truncate" title={c.couponTitle ?? ""}>{c.couponTitle ?? "–"}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium text-slate-800">{c.couponCode ?? "–"}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 text-slate-600 max-w-[200px] truncate hidden md:table-cell" title={c.description ?? ""}>{c.description ?? "–"}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3 text-slate-600 hidden lg:table-cell">{c.expiry ?? "–"}</td>
+                    <td className="px-2 sm:px-4 py-2 sm:py-3">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           c.status !== "disable"
@@ -753,7 +754,7 @@ export default function AdminCouponsPage() {
                         {c.status !== "disable" ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 sm:px-4 py-2 sm:py-3">
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -797,7 +798,7 @@ export default function AdminCouponsPage() {
             </table>
           </div>
           {total > limit && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/50 px-3 sm:px-4 py-3">
               <p className="text-sm text-slate-600">
                 Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
               </p>

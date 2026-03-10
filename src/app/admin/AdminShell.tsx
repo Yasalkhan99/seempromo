@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -29,18 +30,52 @@ export default function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const q = (e: MediaQueryListEvent) => {
+      if (e.matches) setSidebarOpen(false);
+    };
+    const m = window.matchMedia("(min-width: 768px)");
+    m.addEventListener("change", q);
+    return () => m.removeEventListener("change", q);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-slate-50/80">
+      {/* Mobile overlay */}
+      <button
+        type="button"
+        aria-label="Close menu"
+        onClick={() => setSidebarOpen(false)}
+        className={`fixed inset-0 z-20 bg-black/50 transition-opacity md:hidden ${sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      />
+
       {/* Sidebar */}
-      <aside className="w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col">
-        <div className="p-5 border-b border-slate-700/80">
-          <h1 className="text-base font-bold text-white tracking-tight">
-            Admin Panel
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-400">Stores & Coupons</p>
+      <aside
+        className={`fixed top-0 left-0 z-30 h-full w-60 shrink-0 bg-slate-900 text-slate-300 flex flex-col transition-transform duration-200 ease-out md:relative md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="p-4 sm:p-5 border-b border-slate-700/80 flex items-center justify-between">
+          <div>
+            <h1 className="text-base font-bold text-white tracking-tight">
+              Admin Panel
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-400">Stores & Coupons</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-2 -m-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
-        <nav className="p-3 flex-1">
+        <nav className="p-3 flex-1 overflow-y-auto">
           {nav.map((item) => {
             const isActive =
               item.href === "/admin"
@@ -73,20 +108,28 @@ export default function AdminShell({
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between shadow-sm">
-          <span className="text-slate-600 text-sm font-medium">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <header className="h-14 shrink-0 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between gap-3 shadow-sm">
+          <button
+            type="button"
+            aria-label="Open menu"
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden p-2 -m-2 rounded-lg text-slate-600 hover:bg-slate-100"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <span className="text-slate-600 text-sm font-medium truncate">
             Welcome back
           </span>
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs sm:text-sm font-medium text-white hover:bg-emerald-500 transition-colors"
           >
-            View Promotions Page
-            <span>→</span>
+            View Promotions
+            <span className="hidden sm:inline">→</span>
           </Link>
         </header>
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">{children}</main>
       </div>
     </div>
   );
