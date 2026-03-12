@@ -36,6 +36,7 @@ export default function AdminStoresPage() {
   const [coupons, setCoupons] = useState<Store[]>([]);
   const [uploadingStores, setUploadingStores] = useState(false);
   const [uploadStoresProgress, setUploadStoresProgress] = useState<string | null>(null);
+  const [removingDuplicates, setRemovingDuplicates] = useState(false);
   const uploadStoresInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -103,6 +104,39 @@ export default function AdminStoresPage() {
     }
   };
 
+  const handleRemoveDuplicateStores = async () => {
+    const nameKey = (n: string) => (n ?? "").trim().toLowerCase();
+    const byName: Record<string, Store[]> = {};
+    for (const s of stores) {
+      const k = nameKey(s.name);
+      if (!byName[k]) byName[k] = [];
+      byName[k].push(s);
+    }
+    const toDelete: Store[] = [];
+    for (const group of Object.values(byName)) {
+      if (group.length <= 1) continue;
+      const sorted = [...group].sort((a, b) => ((b.logoUrl ?? "").trim() ? 1 : 0) - ((a.logoUrl ?? "").trim() ? 1 : 0));
+      toDelete.push(...sorted.slice(1));
+    }
+    if (toDelete.length === 0) {
+      showMsg("ok", "No duplicate stores (same name) found.");
+      return;
+    }
+    if (!confirm(`Remove ${toDelete.length} duplicate store(s)? The store with logo will be kept for each name.`)) return;
+    setRemovingDuplicates(true);
+    try {
+      for (const s of toDelete) {
+        await fetch(`/api/stores?id=${encodeURIComponent(s.id)}`, { method: "DELETE" });
+      }
+      showMsg("ok", `Removed ${toDelete.length} duplicate store(s).`);
+      load();
+    } catch {
+      showMsg("err", "Failed to remove duplicates");
+    } finally {
+      setRemovingDuplicates(false);
+    }
+  };
+
   const handleUploadStoresCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -121,13 +155,21 @@ export default function AdminStoresPage() {
       return;
     }
     setUploadingStores(true);
-    let ok = 0;
+    let created = 0;
+    let updated = 0;
+    let duplicatesRemoved = 0;
     let fail = 0;
+    const nameKey = (n: string) => (n ?? "").trim().toLowerCase();
+    let storesList = [...stores];
     for (let i = 0; i < rows.length; i++) {
       setUploadStoresProgress(`Uploading ${i + 1} of ${rows.length}…`);
       const r = rows[i];
       const name = (r["Store Name"] ?? r["store name"] ?? "").trim();
       if (!name) continue;
+      const sameNameStores = storesList.filter((s) => nameKey(s.name) === nameKey(name));
+      const keepStore = sameNameStores.length > 0
+        ? [...sameNameStores].sort((a, b) => ((b.logoUrl ?? "").trim() ? 1 : 0) - ((a.logoUrl ?? "").trim() ? 1 : 0))[0]
+        : null;
       const slug = (r["Slug"] ?? r["slug"] ?? "").trim() || slugify(name);
       const category = (r["Category"] ?? r["category"] ?? "").trim();
       const payload = {
@@ -142,13 +184,35 @@ export default function AdminStoresPage() {
         status: "enable",
       };
       try {
-        const res = await fetch("/api/stores", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) ok++;
-        else fail++;
+        if (keepStore) {
+          const res = await fetch("/api/stores", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, id: keepStore.id }),
+          });
+          if (res.ok) {
+            updated++;
+            for (const dup of sameNameStores) {
+              if (dup.id !== keepStore.id) {
+                try {
+                  await fetch(`/api/stores?id=${encodeURIComponent(dup.id)}`, { method: "DELETE" });
+                  duplicatesRemoved++;
+                  storesList = storesList.filter((s) => s.id !== dup.id);
+                } catch {
+                  /* ignore */
+                }
+              }
+            }
+          } else fail++;
+        } else {
+          const res = await fetch("/api/stores", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) created++;
+          else fail++;
+        }
       } catch {
         fail++;
       }
@@ -156,9 +220,13 @@ export default function AdminStoresPage() {
     setUploadingStores(false);
     setUploadStoresProgress(null);
     e.target.value = "";
-    if (ok > 0) {
+    if (created > 0 || updated > 0 || duplicatesRemoved > 0) {
       load();
-      showMsg("ok", `Uploaded ${ok} store(s).${fail > 0 ? ` ${fail} failed.` : ""}`);
+      const parts = [];
+      if (created) parts.push(`${created} created`);
+      if (updated) parts.push(`${updated} updated`);
+      if (duplicatesRemoved) parts.push(`${duplicatesRemoved} duplicate(s) removed`);
+      showMsg("ok", `Store(s): ${parts.join(", ")}.${fail > 0 ? ` ${fail} failed.` : ""}`);
     } else if (fail > 0) showMsg("err", `All ${fail} row(s) failed to upload.`);
   };
 
@@ -484,6 +552,15 @@ export default function AdminStoresPage() {
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
           >
             Create New Store
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveDuplicateStores}
+            disabled={removingDuplicates}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 transition-colors disabled:opacity-70"
+            title="Keep one store per name (prefer with logo), delete the rest"
+          >
+            {removingDuplicates ? "Removing…" : "Remove duplicate stores"}
           </button>
           <button
             type="button"
