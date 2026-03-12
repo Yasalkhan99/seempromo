@@ -44,12 +44,16 @@ async function getStoreData(slug: string): Promise<{
       (s.slug || slugify(s.name)).toLowerCase() === raw ||
       normalizeSlug(s.slug || s.name) === normalizeSlug(raw)
   );
-  const storeCoupons = coupons.filter(
-    (c) =>
-      c.status !== "disable" &&
-      ((c.slug || slugify(c.name)).toLowerCase() === raw ||
-        (c.name && normalizeSlug(c.name) === normalizeSlug(raw)))
-  );
+  const storeNameKey = (store?.name ?? "").trim().toLowerCase();
+  const storeCoupons = coupons.filter((c) => {
+    if (c.status === "disable") return false;
+    const slugMatch =
+      (c.slug || slugify(c.name)).toLowerCase() === raw ||
+      (c.name && normalizeSlug(c.name) === normalizeSlug(raw));
+    if (slugMatch) return true;
+    if (storeNameKey && (c.name ?? "").trim().toLowerCase() === storeNameKey) return true;
+    return false;
+  });
   const displayName = store?.name ?? storeCoupons[0]?.name ?? "Store";
   const otherStores = enabledStores.filter((s) => s.id !== store?.id).slice(0, 6);
   return { store: store ?? null, storeCoupons, displayName, otherStores };
